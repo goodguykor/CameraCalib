@@ -13,7 +13,7 @@ class Calibration:
     """
 
     #static var that keep the number of points to compute
-    NUMPOINT=40
+    NUMPOINT=100
 
     def __init__(self):
         self.prepare()
@@ -22,7 +22,7 @@ class Calibration:
         """Initialize vars
         """
         self.filename = None
-        self.chessSize = (9,6)
+        self.chessSize = (10,7)
         self.nframe = 0
         self.points = []
         self.framesize = ()
@@ -33,6 +33,45 @@ class Calibration:
         self.prepare() #new call on each new file to process
         self.filename = "%s"  % filename
 
+    def undistort(self, gui, cam, dist):
+        """Undistort file
+        """
+        gui.setMessage("Undistort movie... get frame count")
+
+        #open capture file
+        capture = cv.CaptureFromFile(self.filename)
+        frame = cv.QueryFrame(capture)
+        
+        #count... I know it sucks
+        numframes=1
+        while frame:
+            frame = cv.QueryFrame(capture)
+            numframes +=1
+
+        capture = cv.CaptureFromFile(self.filename)
+        frame = cv.QueryFrame(capture) #grab a frame to get some information
+        self.framesize = (frame.width, frame.height)
+        gray = cv.CreateImage((frame.width,frame.height), 8, 1)
+        undistorted_frame = cv.CreateImage((frame.width,frame.height), 8, 3)
+
+        cv.NamedWindow("Uncalibrated image",cv.CV_WINDOW_NORMAL)
+        cv.NamedWindow("Calibrated image",cv.CV_WINDOW_NORMAL)
+
+        while frame:
+            cv.Undistort2(frame, undistorted_frame, cam, dist)
+
+            cv.ResizeWindow("Uncalibrated image",640,480)
+            cv.ResizeWindow("Calibrated image",640,480)
+            cv.ShowImage("Calibrated image",undistorted_frame)
+            cv.ShowImage("Uncalibrated image",frame)
+
+            cv.WaitKey(0)
+            frame = cv.QueryFrame(capture) #grab a frame to get some information
+
+        self.points = points
+        self.nframe = nframe
+
+        gui.setMessage("Analyze end, %d points found" % len(self.points))
     def process(self, gui):
         """Process file, find corners on chessboard and keep points
         """
@@ -101,7 +140,7 @@ class Calibration:
 
         #create matrices that are needed to compute calibration
         mat = cv.CreateMat(3,3,cv.CV_32FC1)
-        distCoeffs = cv.CreateMat(4,1,cv.CV_32FC1)
+        distCoeffs = cv.CreateMat(5,1,cv.CV_32FC1)
         p3d = cv.CreateMat(count,3,cv.CV_32FC1) #compute 3D points
         p2d = cv.CreateMat(count,2,cv.CV_32FC1) #compute 2D points
         pointCounts = cv.CreateMat( self.nframe ,1,cv.CV_32SC1) #give numpoints per images
@@ -207,6 +246,9 @@ class GUI(QtGui.QWidget):
         self.dist2label.setText("K2: " + str(dist[1,0]))
         self.dist3label.setText("P1: " + str(dist[2,0]))
         self.dist4label.setText("P2: " + str(dist[3,0]))
+        self.dist4label.setText("K3: " + str(dist[4,0]))
+
+        c.undistort(self, cam, dist)
 
     def setMessage(self, message):
         """Simply to display messages on GUI
